@@ -1,9 +1,22 @@
-NAME = snoringdragon/luetun-qbittorrent-port-manager
-VERSION = `cat version`
+OWNER ?= zkatancik
+IMAGE ?= gluetun-qbittorrent-port-manager
+NAME  := $(OWNER)/$(IMAGE)
+VERSION := $(shell cat version)
+REGISTRY ?= index.docker.io
+
+.PHONY: build login push
 
 build: Dockerfile start.sh
-	docker buildx build --platform linux/386,linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64,linux/ppc64le -t $(NAME):$(VERSION) -t $(NAME):latest --label "version=$(VERSION)" --load .
+	docker buildx build --platform linux/amd64,linux/arm64 \
+		-t $(NAME):$(VERSION) -t $(NAME):latest \
+		--label "version=$(VERSION)" --load .
 
-push: Dockerfile start.sh version .secret
-	cat .secret | docker login -u snoringdragon --password-stdin
-	docker buildx build --platform linux/386,linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64,linux/ppc64le -t $(NAME):$(VERSION) -t $(NAME):latest --label "version=$(VERSION)" --push .
+login: .secret
+	@echo "Logging in to $(REGISTRY) as $(OWNER)"
+	@if [ ! -s .secret ]; then echo "ERROR: .secret is missing or empty"; exit 1; fi
+	@cat .secret | docker login $(REGISTRY) -u $(OWNER) --password-stdin
+
+push: login Dockerfile start.sh version
+	docker buildx build --platform linux/amd64,linux/arm64 \
+		-t $(NAME):$(VERSION) -t $(NAME):latest \
+		--label "version=$(VERSION)" --push .
